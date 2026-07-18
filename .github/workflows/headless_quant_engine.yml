@@ -12,12 +12,7 @@ jobs:
       - name: 1. Checkout Repositori
         uses: actions/checkout@v4
 
-      - name: 2. Siapkan Python 3.10 (Tanpa Cache pip agar Tidak Error di Repo Kosong)
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: 3. Bangun Arsitektur Enterprise (Zero Trimming) Secara Otomatis
+      - name: 2. Bangun Arsitektur & File Root TERLEBIH DAHULU (Mencegah Error setup-python)
         run: |
           cat << 'EOF' > bootstrap.py
           import os, textwrap
@@ -27,7 +22,7 @@ jobs:
               with open(path, "w", encoding="utf-8") as f:
                   f.write(textwrap.dedent(content).strip() + "\n")
 
-          # 1. Konfigurasi Package Root
+          # 1. Konfigurasi Package Root (Dibuat paling awal agar terdeteksi oleh sistem)
           create_file("pyproject.toml", """
               [build-system]
               requires = ["setuptools>=61.0"]
@@ -253,7 +248,13 @@ jobs:
           """)
           print(">>> BOOTSTRAP ARSITEKTUR SELESAI 100%!")
           EOF
-          python bootstrap.py
+          python3 bootstrap.py
+
+      - name: 3. Siapkan Python 3.10 (Sekarang requirements.txt Sudah Ada di Server!)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
 
       - name: 4. Install Dependensi & Package Modular
         run: |
