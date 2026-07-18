@@ -12,18 +12,20 @@ jobs:
       - name: 1. Checkout Repositori
         uses: actions/checkout@v4
 
-      - name: 2. Siapkan Python 3.10 (Baris cache DIHAPUS agar 100% bebas error No File)
+      - name: 2. Siapkan Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: 3. Bangun Arsitektur Enterprise (Zero Trimming) Secara Otomatis
+      - name: 3. Bangun Arsitektur Enterprise (Zero Trimming)
         run: |
           cat << 'EOF' > bootstrap.py
           import os, textwrap
 
           def create_file(path, content):
-              os.makedirs(os.path.dirname(path), exist_ok=True)
+              dir_name = os.path.dirname(path)
+              if dir_name:  # PENGAMAN MUTLAK: Mencegah crash saat membuat file di root folder!
+                  os.makedirs(dir_name, exist_ok=True)
               with open(path, "w", encoding="utf-8") as f:
                   f.write(textwrap.dedent(content).strip() + "\n")
 
@@ -263,42 +265,43 @@ jobs:
 
       - name: 5. Eksekusi Analisis Kuantitatif & Terbitkan Laporan White-Box
         run: |
-          python -c "
+          cat << 'EOF' > run_pipeline.py
           import os
           from application.workflows.pipeline import QuantTerminalWorkflow
           from data.ingestion.collector import LiveDataCollector
           from infrastructure.messaging.event_bus import bus, Event
 
-          print('>>> MENGAKUISISI DATA PASAR BEI VIA DIRECT BYPASS...')
-          tickers = ['BBCA', 'BBRI', 'BMRI', 'TLKM', 'ASII', 'ADRO']
+          print(">>> MENGAKUISISI DATA PASAR BEI VIA DIRECT BYPASS...")
+          tickers = ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "ADRO"]
           live_data = LiveDataCollector.fetch(tickers)
 
           decisions = []
-          bus.subscribe('DECISION_GENERATED', lambda e: decisions.extend(e.payload['decisions']))
+          bus.subscribe("DECISION_GENERATED", lambda e: decisions.extend(e.payload["decisions"]))
 
           workflow = QuantTerminalWorkflow()
-          bus.publish(Event('DATA_UPDATED', {'vix': 18.2, 'idr_usd': 16250.0, 'flow': 2500.0, 'tickers': live_data}))
+          bus.publish(Event("DATA_UPDATED", {"vix": 18.2, "idr_usd": 16250.0, "flow": 2500.0, "tickers": live_data}))
 
-          summary_path = os.environ.get('GITHUB_STEP_SUMMARY', 'report.md')
-          with open(summary_path, 'w', encoding='utf-8') as f:
-              f.write('# ⚡ IDX Quant Terminal — Institutional White-Box Report\n\n')
-              f.write('**Arsitektur:** Clean Architecture | Domain-Driven Design | Zero Trimming\n\n')
-              f.write('| Ticker | Rating | Skor Quant | Fair Value (Est) | Target Price | Confidence |\n')
-              f.write('|---|---|---|---|---|---|\n')
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "report.md")
+          with open(summary_path, "w", encoding="utf-8") as f:
+              f.write("# ⚡ IDX Quant Terminal — Institutional White-Box Report\n\n")
+              f.write("**Arsitektur:** Clean Architecture | Domain-Driven Design | Zero Trimming\n\n")
+              f.write("| Ticker | Rating | Skor Quant | Fair Value (Est) | Target Price | Confidence |\n")
+              f.write("|---|---|---|---|---|---|\n")
               for d in decisions:
-                  f.write(f'| **{d.ticker}** | {d.rating} | {d.final_score}/100 | Rp {d.fair_value:,.0f} | Rp {d.target_price:,.0f} | {d.confidence_level}% |\n')
+                  f.write(f"| **{d.ticker}** | {d.rating} | {d.final_score}/100 | Rp {d.fair_value:,.0f} | Rp {d.target_price:,.0f} | {d.confidence_level}% |\n")
               
-              f.write('\n## 🔍 White-Box Explainable AI (Audit Trail)\n')
+              f.write("\n## 🔍 White-Box Explainable AI (Audit Trail)\n")
               for d in decisions:
-                  f.write(f'\n### 📌 {d.ticker} — Rating: {d.rating}\n')
-                  f.write(f'- **Entry Zone:** {d.entry_zone} | **Exit Zone:** {d.exit_zone}\n')
-                  f.write('- **Kontribusi Skor Mesin:** ' + str(d.engine_breakdown) + '\n')
-                  f.write('- **Log Kalkulasi Finansial:**\n')
+                  f.write(f"\n### 📌 {d.ticker} — Rating: {d.rating}\n")
+                  f.write(f"- **Entry Zone:** {d.entry_zone} | **Exit Zone:** {d.exit_zone}\n")
+                  f.write("- **Kontribusi Skor Mesin:** " + str(d.engine_breakdown) + "\n")
+                  f.write("- **Log Kalkulasi Finansial:**\n")
                   for line in d.white_box_explanation:
-                      f.write(f'  - {line}\n')
+                      f.write(f"  - {line}\n")
                   if d.conflict_resolution_log:
-                      f.write('- **⚠️ Resolusi Konflik Sinyal:**\n')
+                      f.write("- **⚠️ Resolusi Konflik Sinyal:**\n")
                       for log in d.conflict_resolution_log:
-                          f.write(f'  - {log}\n')
-          print('>>> EKSEKUSI SELESAI. LAPORAN DITERBITKAN KE GITHUB SUMMARY.')
-          "
+                          f.write(f"  - {log}\n")
+          print(">>> EKSEKUSI SELESAI. LAPORAN DITERBITKAN KE GITHUB SUMMARY.")
+          EOF
+          python3 run_pipeline.py
